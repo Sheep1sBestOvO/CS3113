@@ -426,17 +426,20 @@ void update()
 void render()
 {
     glClear(GL_COLOR_BUFFER_BIT);
-
-    g_game_state.player->render(&g_shader_program);
-    
+    if (!win && !lose){
+        g_game_state.player->render(&g_shader_program);
+    }
     if (g_game_state.bullet->m_is_active){
+        
         g_game_state.bullet->render(&g_shader_program);
     }
     for (int i = 0; i < PLATFORM_COUNT; i++)
         g_game_state.platforms[i].render(&g_shader_program);
     for (int i = 0; i < ENEMY_COUNT; i++){
         if ( g_game_state.enemies[i].m_is_active){
-            g_game_state.enemies[i].render(&g_shader_program);
+            if (!win && !lose){
+                g_game_state.enemies[i].render(&g_shader_program);
+            }
         }
     }
     
@@ -467,7 +470,9 @@ int main(int argc, char* argv[])
     while (g_app_status == RUNNING)
     {
         process_input();
-        update();
+        if (!win && !lose){
+            update();
+        }
         render();
     }
 
