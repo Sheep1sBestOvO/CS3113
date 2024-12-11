@@ -4,12 +4,17 @@
 #include "glm/glm.hpp"
 #include "ShaderProgram.h"
 
+enum EntityType {  PLAYER, BULLET, ENEMY, ENEMY_BULLET, SUPER_BULLET};
+enum AIType     { WALKER, SHOOTER, BOSS};
+enum AIState    { H_WALKING, V_WALKING};
 enum AnimationDirection { LEFT, RIGHT, UP, DOWN };
 
 class Entity
 {
 private:
-    int m_walking[4][4]; // 4x4 array for walking animations
+    
+    
+   
 
     // ————— TRANSFORMATIONS ————— //
     glm::vec3 m_movement;
@@ -19,6 +24,8 @@ private:
     glm::vec3 m_acceleration;
 
     glm::mat4 m_model_matrix;
+    
+    
 
     float     m_speed,
               m_jumping_power;
@@ -48,21 +55,41 @@ private:
 public:
     // ————— STATIC VARIABLES ————— //
     static constexpr int SECONDS_PER_FRAME = 4;
+    
+    EntityType m_entity_type;
+    AIType     m_ai_type;
+    AIState    m_ai_state;
+    
+    glm::vec3 m_origin_posi;
+    bool m_can_shoot = false;
+    bool m_is_active = true;
+    bool m_is_alive  = true;
+    void activate()   { m_is_active = true;  };
+    void deactivate() { m_is_active = false; };
+    int m_walking[4][5]; // 4x4 array for walking animations
+    
+    
+    int  m_player_lives = 3;
 
     // ————— METHODS ————— //
     Entity();
-    Entity(GLuint texture_id, float speed, glm::vec3 acceleration, float jump_power, int walking[4][4], float animation_time,
+    Entity(GLuint texture_id, float speed, glm::vec3 acceleration, float jump_power, int walking[4][5],float animation_time,
         int animation_frames, int animation_index, int animation_cols,
-           int animation_rows, float width, float height);
+           int animation_rows, float width, float height, EntityType EntityType);
+    Entity(GLuint texture_id, float speed, float width, float height, EntityType EntityType);
     Entity(GLuint texture_id, float speed, float width, float height); // Simpler constructor
+    Entity(GLuint texture_id, float speed, float width, float height, EntityType EntityType, AIType AIType, AIState AIState);
+    Entity(GLuint texture_id, float speed, float width, float height, EntityType EntityType, AIType AIType);
     ~Entity();
-
+    
+    void bullet_work();
+    void bullet_kill(Entity* enemy);
     void draw_sprite_from_texture_atlas(ShaderProgram* program, GLuint texture_id, int index);
     bool const check_collision(Entity* other) const;
     
     void const check_collision_y(Entity* collidable_entities, int collidable_entity_count);
     void const check_collision_x(Entity* collidable_entities, int collidable_entity_count);
-    void update(float delta_time, Entity* collidable_entities, int collidable_entity_count);
+    void update(float delta_time, Entity *player, Entity *collidable_entities, int collidable_entity_count);
     void render(ShaderProgram* program);
 
     void normalise_movement() { m_movement = glm::normalize(m_movement); }
@@ -72,19 +99,12 @@ public:
     void face_up() { m_animation_indices = m_walking[UP]; }
     void face_down() { m_animation_indices = m_walking[DOWN]; }
 
-    void move_left() { m_acceleration.x += -0.8f; face_left(); }
-    void move_right() { m_acceleration.x += 0.8f;  face_right(); }
+    void move_left() { m_movement.x += -0.8f; face_left(); }
+    void move_right() { m_movement.x += 0.8f;  face_right(); }
     void move_up() { m_movement.y = 1.0f;  face_up(); }
     void move_down() { m_movement.y = -1.0f; face_down(); }
-    
-    void not_fueling() {
-        if (m_acceleration.x < 0.0f){
-            m_acceleration.x += 0.3f;
-        }else if (m_acceleration.x > 0.0f){
-            m_acceleration.x -= 0.3f;
-        }
-    }
-    
+    void ai_activate(Entity *player);
+    void ai_walk();
     void const jump() { m_is_jumping = true; }
 
     // ————— GETTERS ————— //
@@ -116,19 +136,18 @@ public:
     void const set_width(float new_width) {m_width = new_width; }
     void const set_height(float new_height) {m_height = new_height; }
 
-    // Setter for m_walking
-    void set_walking(int walking[4][4])
+//     Setter for m_walking
+    void set_walking(int walking[4][5])
     {
         for (int i = 0; i < 4; ++i)
         {
-            for (int j = 0; j < 4; ++j)
+            for (int j = 0; j < 5; ++j)
             {
                 m_walking[i][j] = walking[i][j];
             }
         }
     }
-    bool win  = false;
-    bool lose = false;
+
 };
 
 #endif // ENTITY_H

@@ -14,7 +14,7 @@
 #include "ShaderProgram.h"
 #include "Utility.h"
 #include "Entity.h"
-#include "Map.h"
+
 
 /**
     Notice that the game's state is now part of the Scene class, not the main file.
@@ -23,19 +23,23 @@ struct GameState
 {
     Entity* player;
     Entity* enemies;
-
-    Map* map;
+    Entity* bullets;
+    Entity* enemy_bullets;
+    Entity* super_bullets;
 
     Mix_Music* bgm;
-    Mix_Chunk *jump_sfx;
+    Mix_Chunk *shoot_sfx;
+    Mix_Chunk *fly_sfx;
+    
     int next_scene_id = -1;
     
 };
+
 class Scene {
 public:
     // ————— ATTRIBUTES ————— //
     
-    int m_number_of_enemies= 1;
+    int m_number_of_enemies= 0;
     
     GameState g_game_state;
     
@@ -46,6 +50,6 @@ public:
     virtual void render(ShaderProgram *program) = 0;
     
     // ————— GETTERS ————— //
-    GameState const get_state()             const { return g_game_state;             }
+    GameState const get_state()             const { return g_game_state;    }
     int       const get_number_of_enemies() const { return m_number_of_enemies; }
 };

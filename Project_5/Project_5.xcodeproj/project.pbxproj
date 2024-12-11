@@ -26,9 +26,9 @@
 		3C1BDA292CF2CEA500DD5F1F /* Lose.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 3C1BDA1F2CF2CEA500DD5F1F /* Lose.cpp */; };
 		3C1BDA2C2CF2CED800DD5F1F /* LevelB.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 3C1BDA2A2CF2CED800DD5F1F /* LevelB.cpp */; };
 		3C1BDA2D2CF2CED800DD5F1F /* LevelA.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 3C1BDA2B2CF2CED800DD5F1F /* LevelA.cpp */; };
-		3C77D5C12CF6D55200842084 /* SDL2_image.framework in CopyFiles */ = {isa = PBXBuildFile; fileRef = 3C1BD99A2CF2786B00DD5F1F /* SDL2_image.framework */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		3C77D5C22CF6D55200842084 /* SDL2_mixer.framework in CopyFiles */ = {isa = PBXBuildFile; fileRef = 3C1BD9992CF2786B00DD5F1F /* SDL2_mixer.framework */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		3C77D5C32CF6D55200842084 /* SDL2.framework in CopyFiles */ = {isa = PBXBuildFile; fileRef = 3C1BD9982CF2786B00DD5F1F /* SDL2.framework */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		3C77D5CD2CF6D6A600842084 /* SDL2_image.framework in CopyFiles */ = {isa = PBXBuildFile; fileRef = 3C1BD99A2CF2786B00DD5F1F /* SDL2_image.framework */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		3C77D5CE2CF6D6A600842084 /* SDL2_mixer.framework in CopyFiles */ = {isa = PBXBuildFile; fileRef = 3C1BD9992CF2786B00DD5F1F /* SDL2_mixer.framework */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		3C77D5CF2CF6D6A600842084 /* SDL2.framework in CopyFiles */ = {isa = PBXBuildFile; fileRef = 3C1BD9982CF2786B00DD5F1F /* SDL2.framework */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -38,11 +38,11 @@
 			dstPath = "";
 			dstSubfolderSpec = 6;
 			files = (
+				3C77D5CD2CF6D6A600842084 /* SDL2_image.framework in CopyFiles */,
+				3C77D5CE2CF6D6A600842084 /* SDL2_mixer.framework in CopyFiles */,
+				3C77D5CF2CF6D6A600842084 /* SDL2.framework in CopyFiles */,
 				3C1BD9C52CF27AA500DD5F1F /* Assets in CopyFiles */,
 				3C1BD9C42CF27A8D00DD5F1F /* shaders in CopyFiles */,
-				3C77D5C12CF6D55200842084 /* SDL2_image.framework in CopyFiles */,
-				3C77D5C22CF6D55200842084 /* SDL2_mixer.framework in CopyFiles */,
-				3C77D5C32CF6D55200842084 /* SDL2.framework in CopyFiles */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

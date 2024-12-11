@@ -13,6 +13,73 @@
 #include "ShaderProgram.h"
 #include "Entity.h"
 
+
+void Entity::ai_activate(Entity *player)
+{
+    switch (m_ai_type)
+    {
+        case WALKER:
+            ai_walk();
+            break;
+            
+        case SHOOTER:
+            break;
+        
+        
+        default:
+            break;
+    }
+}
+
+void Entity::ai_walk()
+{
+    switch (m_ai_state) {
+        case H_WALKING:
+            if (m_position.x > 9.0f) {
+                m_movement = glm::vec3(-1.0f, 0.0f, 0.0f);
+            }else if (m_position.x < 0.0f) {
+                m_movement = glm::vec3(1.0f, 0.0f, 0.0f);
+            }
+            break;
+        case V_WALKING:
+            m_movement = glm::vec3(0.0f, -1.0f, 0.0f);
+            if (m_position.y < -3.0f){
+                m_movement = glm::vec3(-1.0f, 0.0f, 0.0f);
+                
+            }
+            if (m_position.x < 0.0f){
+                    deactivate();
+                    m_is_alive = false;
+        
+            }
+            
+            break;
+        default:
+            break;
+            
+    }
+}
+
+
+void Entity::bullet_work(){
+    if (m_position.y < -7.5f){
+        m_movement.y = -m_movement.y;
+    }
+    else if(m_position.y > 0.0f){
+        m_movement.y = -m_movement.y;
+    }else if (m_position.x > 10.0f) {
+        m_movement.x = - m_movement.x;
+    }else if (m_position.x < 0.5f) {
+        m_movement.x = - m_movement.x;
+    }
+    
+}
+void Entity::bullet_kill(Entity* enemy) {
+    if (check_collision(enemy)) {
+        deactivate();
+        enemy->deactivate();
+    }
+}
 // Default constructor
 Entity::Entity()
     : m_position(0.0f), m_movement(0.0f), m_scale(1.0f, 1.0f, 0.0f), m_model_matrix(1.0f),
@@ -26,19 +93,54 @@ Entity::Entity()
 }
 
 // Parameterized constructor
-Entity::Entity(GLuint texture_id, float speed, glm::vec3 acceleration, float jump_power, int walking[4][4], float animation_time,
+Entity::Entity(GLuint texture_id, float speed, glm::vec3 acceleration, float jump_power,int walking[4][5] ,float animation_time,
     int animation_frames, int animation_index, int animation_cols,
-    int animation_rows, float width, float height)
+    int animation_rows, float width, float height,EntityType EntityType)
     : m_position(0.0f), m_movement(0.0f), m_scale(1.0f, 1.0f, 0.0f), m_model_matrix(1.0f),
     m_speed(speed),m_acceleration(acceleration), m_jumping_power(jump_power), m_animation_cols(animation_cols),
     m_animation_frames(animation_frames), m_animation_index(animation_index),
     m_animation_rows(animation_rows), m_animation_indices(nullptr),
     m_animation_time(animation_time), m_texture_id(texture_id), m_velocity(0.0f),
-    m_width(width), m_height(height)
+    m_width(width), m_height(height), m_entity_type(EntityType)
 {
     face_right();
     set_walking(walking);
 }
+
+// Parameterized constructor
+Entity::Entity(GLuint texture_id, float speed, float width, float height, EntityType EntityType)
+    : m_position(0.0f), m_movement(0.0f), m_scale(1.0f, 1.0f, 0.0f), m_model_matrix(1.0f),
+    m_speed(speed),m_acceleration(0.0f), m_jumping_power(0.0f), m_animation_cols(0),
+    m_animation_frames(0), m_animation_index(0),
+    m_animation_rows(0), m_animation_indices(nullptr),
+    m_animation_time(0), m_texture_id(texture_id), m_velocity(0.0f),
+    m_width(width), m_height(height), m_entity_type(EntityType)
+{
+
+}
+
+
+Entity::Entity(GLuint texture_id, float speed, float width, float height, EntityType EntityType, AIType AIType, AIState AIState): m_position(0.0f), m_movement(0.0f), m_scale(1.0f, 1.0f, 0.0f), m_model_matrix(1.0f),
+m_speed(speed), m_animation_cols(0), m_animation_frames(0), m_animation_index(0),
+m_animation_rows(0), m_animation_indices(nullptr), m_animation_time(0.0f),
+m_texture_id(texture_id), m_velocity(0.0f), m_acceleration(0.0f), m_width(width), m_height(height),m_entity_type(EntityType), m_ai_type(AIType), m_ai_state(AIState)
+{
+// Initialize m_walking with zeros or any default value
+for (int i = 0; i < SECONDS_PER_FRAME; ++i)
+    for (int j = 0; j < SECONDS_PER_FRAME; ++j) m_walking[i][j] = 0;
+}
+
+Entity::Entity(GLuint texture_id, float speed, float width, float height, EntityType EntityType, AIType AIType): m_position(0.0f), m_movement(0.0f), m_scale(1.0f, 1.0f, 0.0f), m_model_matrix(1.0f),
+m_speed(speed), m_animation_cols(0), m_animation_frames(0), m_animation_index(0),
+m_animation_rows(0), m_animation_indices(nullptr), m_animation_time(0.0f),
+m_texture_id(texture_id), m_velocity(0.0f), m_acceleration(0.0f), m_width(width), m_height(height),m_entity_type(EntityType), m_ai_type(AIType)
+{
+// Initialize m_walking with zeros or any default value
+for (int i = 0; i < SECONDS_PER_FRAME; ++i)
+    for (int j = 0; j < SECONDS_PER_FRAME; ++j) m_walking[i][j] = 0;
+}
+
+
 
 // Simpler constructor for partial initialization
 Entity::Entity(GLuint texture_id, float speed,  float width, float height)
@@ -94,11 +196,19 @@ void Entity::draw_sprite_from_texture_atlas(ShaderProgram* program, GLuint textu
 
 bool const Entity::check_collision(Entity* other) const
 {
+    if (other == this || other == NULL) return false;
+    
+    if (!m_is_active || !other->m_is_active) return false;
+
     float x_distance = fabs(m_position.x - other->m_position.x) - ((m_width + other->m_width) / 2.0f);
     float y_distance = fabs(m_position.y - other->m_position.y) - ((m_height + other->m_height) / 2.0f);
 
     return x_distance < 0.0f && y_distance < 0.0f;
 }
+
+
+
+
 
 void const Entity::check_collision_y(Entity *collidable_entities, int collidable_entity_count)
 {
@@ -108,23 +218,33 @@ void const Entity::check_collision_y(Entity *collidable_entities, int collidable
         
         if (check_collision(collidable_entity))
         {
-            float y_distance = fabs(m_position.y - collidable_entity->m_position.y);
-            float y_overlap = fabs(y_distance - (m_height / 2.0f) - (collidable_entity->m_height / 2.0f));
-            if (m_velocity.y > 0)
-            {
-                m_position.y   -= y_overlap;
-                m_velocity.y    = 0;
+            if(m_entity_type == BULLET && collidable_entity->m_entity_type == ENEMY && collidable_entity->m_ai_type != BOSS) {
+                this->deactivate();
+                collidable_entity->deactivate();
+                collidable_entity->m_is_alive = false;
 
-                // Collision!
-                m_collided_top  = true;
-            } else if (m_velocity.y < 0)
-            {
-                m_position.y      += y_overlap;
-                m_velocity.y       = 0;
-
-                // Collision!
-                m_collided_bottom  = true;
             }
+            if(m_entity_type == BULLET && collidable_entity->m_entity_type == ENEMY && collidable_entity->m_ai_type == BOSS) {
+                this->deactivate();
+                collidable_entity->m_player_lives -= 1;
+
+            }
+            
+            if(m_entity_type == ENEMY_BULLET && collidable_entity->m_entity_type == PLAYER) {
+                this->deactivate();
+                collidable_entity->m_player_lives -= 1;
+                std::cout << collidable_entity->m_player_lives << std::endl;
+                collidable_entity->set_position(collidable_entity->m_origin_posi);
+
+            }
+            
+            if(m_entity_type == SUPER_BULLET && collidable_entity->m_entity_type == PLAYER) {
+                this->deactivate();
+                collidable_entity->m_player_lives -= 1;
+                collidable_entity->set_position(collidable_entity->m_origin_posi);
+
+            }
+
         }
     }
 }
@@ -137,31 +257,44 @@ void const Entity::check_collision_x(Entity *collidable_entities, int collidable
         
         if (check_collision(collidable_entity))
         {
-            float x_distance = fabs(m_position.x - collidable_entity->m_position.x);
-            float x_overlap = fabs(x_distance - (m_width / 2.0f) - (collidable_entity->m_width / 2.0f));
-            if (m_velocity.x > 0)
-            {
-                m_position.x     -= x_overlap;
-                m_velocity.x      = 0;
-
-                // Collision!
-                m_collided_right  = true;
-                
-            } else if (m_velocity.x < 0)
-            {
-                m_position.x    += x_overlap;
-                m_velocity.x     = 0;
- 
-                // Collision!
-                m_collided_left  = true;
-            }
+//            if(m_entity_type == BULLET && collidable_entity->m_entity_type == ENEMY && collidable_entity->m_ai_type != BOSS) {
+//                this->deactivate();
+//                collidable_entity->deactivate();
+//                collidable_entity->m_is_alive = false;
+//            }
+//            if(m_entity_type == BULLET && collidable_entity->m_entity_type == ENEMY && collidable_entity->m_ai_type == BOSS) {
+//                this->deactivate();
+//                collidable_entity->m_player_lives -= 1;
+//            }
+//            if(m_entity_type == ENEMY_BULLET && collidable_entity->m_entity_type == PLAYER) {
+//                this->deactivate();
+//                collidable_entity->m_player_lives -= 1;
+//               
+//                collidable_entity->set_position(collidable_entity->m_origin_posi);
+//
+//            }
+//            if(m_entity_type == SUPER_BULLET && collidable_entity->m_entity_type == PLAYER) {
+//                this->deactivate();
+//                collidable_entity->m_player_lives -= 1;
+//                collidable_entity->set_position(collidable_entity->m_origin_posi);
+//
+//            }
+//
         }
     }
 }
-void Entity::update(float delta_time, Entity* collidable_entities, int collidable_entity_count)
+void Entity::update(float delta_time, Entity *player, Entity *collidable_entities, int collidable_entity_count)
 
 {
+    if (!m_is_active) return;
     
+    
+    
+    if (m_entity_type == ENEMY ) ai_activate(player);
+    
+    if (m_entity_type == SUPER_BULLET) bullet_work();
+    
+
     m_collided_top    = false;
     m_collided_bottom = false;
     m_collided_left   = false;
@@ -169,9 +302,10 @@ void Entity::update(float delta_time, Entity* collidable_entities, int collidabl
     for (int i = 0; i < collidable_entity_count; i++)
     {
         if (check_collision(&collidable_entities[i])) {
-            return;
-        }
+                return;
+                }
     }
+
 
     if (m_animation_indices != NULL)
     {
@@ -195,9 +329,10 @@ void Entity::update(float delta_time, Entity* collidable_entities, int collidabl
 
     // Our character moves from left to right, so they need an initial velocity
     m_velocity.x = m_movement.x * m_speed;
+    m_velocity.y = m_movement.y * m_speed;
     
-    // And we add the gravity next
-    m_velocity += m_acceleration * delta_time;
+//     And we add the gravity next
+    m_velocity.y += m_acceleration.y * delta_time;
     
     m_position.y += m_velocity.y * delta_time;
     check_collision_y(collidable_entities, collidable_entity_count);
@@ -213,11 +348,6 @@ void Entity::update(float delta_time, Entity* collidable_entities, int collidabl
         m_velocity.y += m_jumping_power;
     }
     
-    if (m_collided_bottom) win = true;
-    if (m_position.x < -5.25f || m_position.x > 5.25f || m_position.y < -4.25f){
-        lose = true;
-        return;
-    }
     
     m_model_matrix = glm::mat4(1.0f);
     m_model_matrix = glm::translate(m_model_matrix, m_position);

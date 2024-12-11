@@ -1,41 +1,41 @@
 #define GL_SILENCE_DEPRECATION
+#define STB_IMAGE_IMPLEMENTATION
+#define LOG(argument) std::cout << argument << '\n'
 #define GL_GLEXT_PROTOTYPES 1
 #define FIXED_TIMESTEP 0.0166666f
-#define LEVEL1_WIDTH 14
-#define LEVEL1_HEIGHT 8
-#define LEVEL1_LEFT_EDGE 5.0f
+#define PLATFORM_COUNT 0
 
 #ifdef _WINDOWS
 #include <GL/glew.h>
 #endif
 
-#include <SDL_mixer.h>
 #include <SDL.h>
 #include <SDL_opengl.h>
 #include "glm/mat4x4.hpp"
 #include "glm/gtc/matrix_transform.hpp"
 #include "ShaderProgram.h"
+#include "stb_image.h"
 #include "cmath"
 #include <ctime>
 #include <vector>
 #include "Entity.h"
-#include "Map.h"
-#include "Utility.h"
-#include "Scene.h"
-#include "Menu.h"
-#include "LevelA.h"
-#include "LevelB.h"
-#include "LevelC.h"
-#include "Win.h"
-#include "Lose.h"
 
-constexpr int WINDOW_WIDTH  = 640,
-          WINDOW_HEIGHT = 480;
+// ––––– STRUCTS AND ENUMS ––––– //
+struct GameState
+{
+    Entity* player;
+    Entity* platforms;
+};
+
+enum AppStatus { RUNNING, TERMINATED };
+// ––––– CONSTANTS ––––– //
+constexpr int WINDOW_WIDTH  = 640 * 2,
+          WINDOW_HEIGHT = 480 * 2;
 
 constexpr float BG_RED     = 0.1922f,
             BG_BLUE    = 0.549f,
             BG_GREEN   = 0.9059f,
-            BG_OPACITY = 1.0f;
+            BG_OPACITY = 0.1f;
 
 constexpr int VIEWPORT_X = 0,
           VIEWPORT_Y = 0,
@@ -46,109 +46,168 @@ constexpr char V_SHADER_PATH[] = "shaders/vertex_textured.glsl",
            F_SHADER_PATH[] = "shaders/fragment_textured.glsl";
 
 constexpr float MILLISECONDS_IN_SECOND = 1000.0;
+constexpr char SPRITESHEET_FILEPATH[] = "assets/planesheet.png";
+constexpr char PLATFORM_FILEPATH[]    = "assets/platformPack_tile027.png";
 
-enum AppStatus { RUNNING, TERMINATED };
-
+constexpr int NUMBER_OF_TEXTURES = 1;
+constexpr GLint LEVEL_OF_DETAIL  = 0;
+constexpr GLint TEXTURE_BORDER   = 0;
 
 // ––––– GLOBAL VARIABLES ––––– //
-Scene  *g_current_scene;
-Menu   *g_menu;
-LevelA *g_levelA;
-LevelB *g_levelB;
-LevelC *g_levelC;
-Win* g_level_win;
-Lose* g_level_lose;
-
-
-Scene   *g_levels[6];
+GameState g_game_state;
 
 SDL_Window* g_display_window;
-GLuint g_font_texture_id;
+AppStatus g_app_status = RUNNING;
 
 ShaderProgram g_shader_program;
 glm::mat4 g_view_matrix, g_projection_matrix;
 
 float g_previous_ticks = 0.0f;
-float g_accumulator = 0.0f;
+float g_accumulator    = 0.0f;
 
-int player_lives = 3;
 
-bool g_is_colliding_bottom = false;
+// Fuel bar dimensions
+// Fuel bar dimensions (width and height can be adjusted as needed)
+constexpr float FUEL_BAR_WIDTH = 2.0f;
+constexpr float FUEL_BAR_HEIGHT = 0.25f;
 
-AppStatus g_app_status = RUNNING;
+// Position the fuel bar in the top-right corner
+constexpr float FUEL_BAR_X = 0.0f; // Adjust based on window size and desired position
+constexpr float FUEL_BAR_Y = 0.0f; // Adjust based on window size and desired position
+// ———— GENERAL FUNCTIONS ———— //
+GLuint load_texture(const char* filepath);
 
-const char TEXT_FILEPATH[]  = "Assets/font1.png";
-void swtich_to_scene(Scene *scene);
 void initialise();
 void process_input();
 void update();
 void render();
 void shutdown();
+void render_fuel_bar();
 
 // ––––– GENERAL FUNCTIONS ––––– //
-void switch_to_scene(Scene *scene)
+GLuint load_texture(const char* filepath)
 {
-    g_current_scene = scene;
-    g_current_scene->initialise(); // DON'T FORGET THIS STEP!
+    int width, height, number_of_components;
+    unsigned char* image = stbi_load(filepath, &width, &height, &number_of_components, STBI_rgb_alpha);
+    
+    if (image == NULL)
+    {
+        LOG("Unable to load image. Make sure the path is correct.");
+        assert(false);
+    }
+    
+    GLuint textureID;
+    glGenTextures(NUMBER_OF_TEXTURES, &textureID);
+    glBindTexture(GL_TEXTURE_2D, textureID);
+    glTexImage2D(GL_TEXTURE_2D, LEVEL_OF_DETAIL, GL_RGBA, width, height, TEXTURE_BORDER, GL_RGBA, GL_UNSIGNED_BYTE, image);
+    
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    
+    stbi_image_free(image);
+    
+    return textureID;
 }
+
+
+
 
 void initialise()
 {
-    SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO);
-    g_display_window = SDL_CreateWindow("Platformer",
-                                      SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                                      WINDOW_WIDTH, WINDOW_HEIGHT,
-                                      SDL_WINDOW_OPENGL);
-    
+    SDL_Init(SDL_INIT_VIDEO);
+    g_display_window = SDL_CreateWindow("Hello, Entities!",
+        SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+        WINDOW_WIDTH, WINDOW_HEIGHT,
+        SDL_WINDOW_OPENGL);
+
     SDL_GLContext context = SDL_GL_CreateContext(g_display_window);
     SDL_GL_MakeCurrent(g_display_window, context);
-    
+
+    if (context == nullptr)
+    {
+        LOG("ERROR: Could not create OpenGL context.\n");
+        shutdown();
+    }
+
 #ifdef _WINDOWS
     glewInit();
 #endif
-    
+
     glViewport(VIEWPORT_X, VIEWPORT_Y, VIEWPORT_WIDTH, VIEWPORT_HEIGHT);
-    
+
     g_shader_program.load(V_SHADER_PATH, F_SHADER_PATH);
-    
+
     g_view_matrix = glm::mat4(1.0f);
     g_projection_matrix = glm::ortho(-5.0f, 5.0f, -3.75f, 3.75f, -1.0f, 1.0f);
-    
+
     g_shader_program.set_projection_matrix(g_projection_matrix);
     g_shader_program.set_view_matrix(g_view_matrix);
-    
-    g_font_texture_id = Utility::load_texture(TEXT_FILEPATH);
-    
+
     glUseProgram(g_shader_program.get_program_id());
-    
+
     glClearColor(BG_RED, BG_BLUE, BG_GREEN, BG_OPACITY);
     
-    // enable blending
+//    // ––––– PLATFORMS ––––– //
+//
+//    g_game_state.platforms = new Entity[PLATFORM_COUNT];
+//    GLuint platform_texture_id = load_texture(PLATFORM_FILEPATH);
+//    for(int i = 0; i < PLATFORM_COUNT; i++){
+//        g_game_state.platforms[i] = Entity(platform_texture_id,0.0f, 0.4f, 0.8f);
+//    }
+//
+//    g_game_state.platforms[PLATFORM_COUNT - 1].set_position(glm::vec3(-1.5f, -2.35f, 0.0f));
+//    g_game_state.platforms[PLATFORM_COUNT - 1].update(0.0f, NULL, 0);
+//
+//    g_game_state.platforms[PLATFORM_COUNT - 2].set_position(glm::vec3(-1.5f, -2.35f, 0.0f));
+//    g_game_state.platforms[PLATFORM_COUNT - 2].update(0.0f, NULL, 0);
+//
+    
+    // ————— PLAYER ————— //
+    GLuint player_texture_id = load_texture(SPRITESHEET_FILEPATH);
+    
+    int player_walking_animation[4][5] =
+    {
+        { 1, 2, 3, 4, 5},  // for George to move to the left,
+        { 6, 7, 8, 9, 10 }, // for George to move to the right,
+        { 11, 12, 13, 14, 15 }, // for George to move upwards,
+        { 16, 17, 18, 19, 20 }   // for George to move downwards
+    };
+    
+    glm::vec3 acceleration = glm::vec3(0.0f,-0.4905f, 0.0f);
+
+    g_game_state.player = new Entity(
+        player_texture_id,         // texture id
+        1.0f,                      // speed
+        acceleration,              // acceleration
+        0.0f,                      // jumping power
+        player_walking_animation,  // animation index sets
+        0.0f,                      // animation time
+        5,                         // animation frame amount
+        0,                         // current animation index
+        5,                         // animation column amount
+        8,                         // animation row amount
+        0.9f,                      // width
+        0.9f                       // height
+    );
+    
+
+    g_game_state.player->set_position(glm::vec3(0.0f, 3.5f, 0.0f));
+    
+    
+    
+    // ––––– GENERAL ––––– //
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    
-    g_menu = new Menu();
-    g_levelA = new LevelA();
-    g_levelB = new LevelB();
-    g_levelC = new LevelC();
-    g_level_win = new Win();
-    g_level_lose = new Lose();
-    
-    g_levels[0] = g_menu;
-    g_levels[1] = g_levelA;
-    g_levels[2] = g_levelB;
-    g_levels[3] = g_levelC;
-    g_levels[4] = g_level_win;
-    g_levels[5] = g_level_lose;
-    
-    // Start at level A
-    switch_to_scene(g_levels[0]);
-    
 }
 
 void process_input()
 {
-    g_current_scene->g_game_state.player->set_movement(glm::vec3(0.0f));
+    g_game_state.player->set_movement(glm::vec3(0.0f));
+    
     
     SDL_Event event;
     while (SDL_PollEvent(&event))
@@ -156,31 +215,15 @@ void process_input()
         switch (event.type) {
             // End game
             case SDL_QUIT:
-                case SDL_WINDOWEVENT_CLOSE:
-                    g_app_status = TERMINATED;
-                    break;
-                    
-                case SDL_KEYDOWN:
-                    switch (event.key.keysym.sym) {
-                        case SDLK_q:
-                            // Quit the game with a keystroke
-                            g_app_status = TERMINATED;
-                            break;
-                        
-                    case SDLK_SPACE:
-                        // Jump
-                        if (g_current_scene->g_game_state.player->get_collided_bottom())
-                        {
-                            g_current_scene->g_game_state.player->jump();
-                            Mix_PlayChannel(-1, g_current_scene->g_game_state.jump_sfx, 0);
-                        }
-                        break;
-                    case SDLK_RETURN:
-                        if (g_current_scene == g_levels[0])
-                        {
-                            switch_to_scene(g_levelA);
-
-                        }
+            case SDL_WINDOWEVENT_CLOSE:
+                g_app_status = TERMINATED;
+                break;
+                
+            case SDL_KEYDOWN:
+                switch (event.key.keysym.sym) {
+                    case SDLK_q:
+                        // Quit the game with a keystroke
+                        g_app_status = TERMINATED;
                         break;
                         
                     default:
@@ -192,14 +235,21 @@ void process_input()
         }
     }
     
-    const Uint8 *key_state = SDL_GetKeyboardState(NULL);
+    const Uint8* key_state = SDL_GetKeyboardState(NULL);
 
-    if (key_state[SDL_SCANCODE_LEFT])       g_current_scene->g_game_state.player->move_left();
-    else if (key_state[SDL_SCANCODE_RIGHT])  g_current_scene->g_game_state.player->move_right();
+    if (key_state[SDL_SCANCODE_LEFT]) {
         
-    if (glm::length( g_current_scene->g_game_state.player->get_movement()) > 1.0f)
-        g_current_scene->g_game_state.player->normalise_movement();
-   
+        g_game_state.player->move_left();
+    }
+    else if (key_state[SDL_SCANCODE_RIGHT] ){
+        
+        g_game_state.player->move_right();
+    }
+    
+    
+    
+    if (glm::length(g_game_state.player->get_movement()) > 1.0f)
+            g_game_state.player->normalise_movement();
 }
 
 void update()
@@ -216,61 +266,36 @@ void update()
         return;
     }
     
-    while (delta_time >= FIXED_TIMESTEP) {
-        g_current_scene->update(FIXED_TIMESTEP, player_lives);
-        player_lives = g_current_scene-> g_game_state.player->m_player_lives;
+    
+    while (delta_time >= FIXED_TIMESTEP)
+    {
+        g_game_state.player->update(FIXED_TIMESTEP, g_game_state.platforms, PLATFORM_COUNT);
         delta_time -= FIXED_TIMESTEP;
     }
     
+    
     g_accumulator = delta_time;
-    
-    // Prevent the camera from showing anything outside of the "edge" of the level
-    g_view_matrix = glm::mat4(1.0f);
-    
-    if (g_current_scene->g_game_state.player->get_position().x > LEVEL1_LEFT_EDGE) {
-        g_view_matrix = glm::translate(g_view_matrix, glm::vec3(-g_current_scene->g_game_state.player->get_position().x, 3.75, 0));
-    } else {
-        g_view_matrix = glm::translate(g_view_matrix, glm::vec3(-5, 3.75, 0));
-    }
-    
-    if (g_current_scene == g_levelA && g_current_scene->g_game_state.player->get_position().y < -10.0f) switch_to_scene(g_levelB);
-    if (g_current_scene == g_levelB && g_current_scene->g_game_state.player->get_position().y < -10.0f) switch_to_scene(g_levelC);
-    if (g_current_scene == g_levelC && g_current_scene->g_game_state.player->get_position().y < -10.0f)
-        switch_to_scene(g_levels[4]);
-    if(player_lives == 0){
-        switch_to_scene(g_levels[5]);
-        }
-    
 }
 
 void render()
 {
-    g_shader_program.set_view_matrix(g_view_matrix);
     glClear(GL_COLOR_BUFFER_BIT);
+     g_game_state.player->render(&g_shader_program);
+    for (int i = 0; i < PLATFORM_COUNT; i++) g_game_state.platforms[i].render(&g_shader_program);
     
-    glUseProgram(g_shader_program.get_program_id());
-    g_current_scene->render(&g_shader_program);
-    
-    
+
     SDL_GL_SwapWindow(g_display_window);
-    
-    if (g_current_scene == g_levelC && g_current_scene->g_game_state.player->get_position().y < -10.0f)
-        Utility::draw_text(&g_shader_program, g_font_texture_id, std::string("YOU WIN"), 0.25f, 0.0f, glm::vec3(-1.25f, 0.0f, 0.0f));
 }
 
 void shutdown()
 {
     SDL_Quit();
     
-    delete g_menu;
-    delete g_levelA;
-    delete g_levelB;
-    delete g_levelC;
-    delete g_level_win;
-    delete g_level_lose;
+    delete [] g_game_state.platforms;
+    delete g_game_state.player;
 }
 
-// ––––– DRIVER GAME LOOP ––––– //
+// ––––– GAME LOOP ––––– //
 int main(int argc, char* argv[])
 {
     initialise();
@@ -279,9 +304,8 @@ int main(int argc, char* argv[])
     {
         process_input();
         update();
-        if (g_current_scene->get_state().next_scene_id >= 0) switch_to_scene(g_levels[g_current_scene->get_state().next_scene_id]);
-        
         render();
+        
     }
     
     shutdown();

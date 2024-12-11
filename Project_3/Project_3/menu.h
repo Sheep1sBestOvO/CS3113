@@ -1,11 +1,12 @@
 #include "Scene.h"
 
-class Win : public Scene {
+class Menu : public Scene {
 public:
     // ————— STATIC ATTRIBUTES ————— //
     int ENEMY_COUNT = 0;
+    bool enemy_remain = true;
     // ————— CONSTRUCTOR ————— //
-    ~Win();
+    ~Menu();
     
     // ————— METHODS ————— //
     void initialise() override;
